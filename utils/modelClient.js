@@ -1,97 +1,67 @@
-import prompts from "./prompts";
+import prompts from './prompts'
 import OpenAI from "openai";
 
-// Initialize OpenAI with your Vercel environment variable
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// ----------------------------
-// 1) REAL MODEL: BUG FIX MODEL
-// ----------------------------
+/**
+ * FIXER MODEL (real)
+ */
 export async function runModelForFix({ images, logs, steps }) {
   try {
+    const client = new OpenAI({
+      apiKey: process.env.OPENAIKEY,   // <-- must match your Vercel Env name
+    });
+
     const system = prompts.systemForFixer;
-
-    const user = `
-Logs:
-${logs.slice(0, 4000)}
-
-Steps:
-${steps.slice(0, 4000)}
-
-Images attached: ${images?.length || 0}
-`;
+    const user = `Logs:\n${logs}\n\nSteps:\n${steps}\n\nImages: ${images?.length}`;
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+        { role: "user", content: user }
+      ]
     });
 
-    const ai_output = response.choices[0].message.content;
-
-    return {
-      success: true,
-      raw: ai_output,
-      verdict: "fix_required",
-      confidence: 0.93,
-      reasoning: ai_output,
-    };
+    return JSON.parse(response.choices[0].message.content);
   } catch (err) {
+    console.error("Fix model error", err);
     return {
-      success: false,
-      error: err.message,
+      confidence: 0,
+      verdict: "error",
+      summary: "Failed to call AI model.",
+      error: err.message
     };
   }
 }
 
-// ----------------------------
-// 2) REAL MODEL: QA JUDGE
-// ----------------------------
+/**
+ * JUDGE MODEL (real)
+ */
 export async function runModelForJudge({ images, logs, steps }) {
   try {
-    const system = prompts.systemForJudge;
-
-    const user = `
-### QA JUDGE INPUT
-
-Logs:
-${logs.slice(0, 4000)}
-
-Steps:
-${steps.slice(0, 4000)}
-
-Images Attached: ${images?.length || 0}
-`;
+    const client = new OpenAI({
+      apiKey: process.env.OPENAIKEY,   // <-- must match your Vercel Env name
+    });
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+        { role: "system", content: "You are a QA test result judge." },
+        {
+          role: "user",
+          content: `Logs: ${logs}\n\nSteps: ${steps}\nImages: ${images?.length}`
+        }
+      ]
     });
-
-    const ai_output = response.choices[0].message.content;
 
     return {
       success: true,
-      status: "ok",
-      verdict: "judge_result",
-      confidence: 0.95,
-      reasoning: ai_output,
-      images_count: images?.length || 0,
-      logs_length: logs?.length || 0,
-      steps_length: steps?.length || 0,
+      result: JSON.parse(response.choices[0].message.content)
     };
   } catch (err) {
+    console.error("Judge model error", err);
     return {
       success: false,
-      status: "error",
-      error: err.message,
+      error: err.message
     };
   }
 }
