@@ -1,5 +1,5 @@
 import formidable from "formidable";
-import { runModelForJudge } from "../../../../utils/modelClient";
+import { runModelForJudge, runModelForFix } from '../../../utils/modelClient';
 
 export const config = {
   api: {
