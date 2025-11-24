@@ -1,31 +1,97 @@
-import prompts from './prompts'
+import prompts from "./prompts";
+import OpenAI from "openai";
 
-export async function runModelForFix({images, logs, steps}){
-  const system = prompts.systemForFixer
-  const user = `Logs:\n${logs.slice(0,4000)}\n\nSteps:\n${steps.slice(0,4000)}\n\nImages: ${images.length} attached.`
+// Initialize OpenAI with your Vercel environment variable
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-  return {
-    confidence: 0.78,
-    verdict: 'test_fix_required',
-    summary: 'Hard-coded selector for size missing; UI differs.',
-    fixed_test_case: [
-      'Open product page',
-      'Detect available dynamic size',
-      'Select first available',
-      'Click add to cart'
-    ],
-    corrected_code_snippet: "await page.click('.size-selector button:first-child')",
-    judge_reasoning: 'Mock mode: Replace size with dynamic selection.'
+// ----------------------------
+// 1) REAL MODEL: BUG FIX MODEL
+// ----------------------------
+export async function runModelForFix({ images, logs, steps }) {
+  try {
+    const system = prompts.systemForFixer;
+
+    const user = `
+Logs:
+${logs.slice(0, 4000)}
+
+Steps:
+${steps.slice(0, 4000)}
+
+Images attached: ${images?.length || 0}
+`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+
+    const ai_output = response.choices[0].message.content;
+
+    return {
+      success: true,
+      raw: ai_output,
+      verdict: "fix_required",
+      confidence: 0.93,
+      reasoning: ai_output,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.message,
+    };
   }
 }
+
+// ----------------------------
+// 2) REAL MODEL: QA JUDGE
+// ----------------------------
 export async function runModelForJudge({ images, logs, steps }) {
-  return {
-    status: "ok",
-    verdict: "fix_required",
-    confidence: 0.67,
-    reasoning: "Mock judge: analysis complete.",
-    images_count: images?.length || 0,
-    logs_length: logs?.length || 0,
-    steps_length: steps?.length || 0
-  };
+  try {
+    const system = prompts.systemForJudge;
+
+    const user = `
+### QA JUDGE INPUT
+
+Logs:
+${logs.slice(0, 4000)}
+
+Steps:
+${steps.slice(0, 4000)}
+
+Images Attached: ${images?.length || 0}
+`;
+
+    const response = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    });
+
+    const ai_output = response.choices[0].message.content;
+
+    return {
+      success: true,
+      status: "ok",
+      verdict: "judge_result",
+      confidence: 0.95,
+      reasoning: ai_output,
+      images_count: images?.length || 0,
+      logs_length: logs?.length || 0,
+      steps_length: steps?.length || 0,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      status: "error",
+      error: err.message,
+    };
+  }
 }
