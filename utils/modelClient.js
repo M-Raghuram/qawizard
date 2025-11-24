@@ -18,3 +18,14 @@ export async function runModelForFix({images, logs, steps}){
     judge_reasoning: 'Mock mode: Replace size with dynamic selection.'
   }
 }
+export async function runModelForJudge(input) {
+  // 🚀 Mock version of the AI judge output
+  // You can replace this with real API logic later
+  return {
+    status: "ok",
+    verdict: "judge_result_success",
+    confidence: 0.85,
+    reasoning: "Mock judge evaluation complete.",
+    input_received: input
+  };
+}
